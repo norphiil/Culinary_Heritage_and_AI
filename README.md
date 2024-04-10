@@ -24,6 +24,6 @@ py .\manage.py runserver
 
 ## Usage
 
-1. Open the application in your browser
+1. Open the application in your browser (Default `http://127.0.0.1:8000/`)
 2. You can zoom in the chart by selecting a specific area with your mouse
 3. You can select a specific dish, recipe and cluster by clicking on the corresponding dropdown menu
