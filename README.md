@@ -2,6 +2,8 @@
 
 ## Installation
 
+(used with Python 3.11.5, but should work with other versions as well)
+
 1. Clone the repository
 
 ```bash
@@ -23,3 +25,5 @@ py .\manage.py runserver
 ## Usage
 
 1. Open the application in your browser
+2. You can zoom in the chart by selecting a specific area with your mouse
+3. You can select a specific dish, recipe and cluster by clicking on the corresponding dropdown menu
