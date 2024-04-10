@@ -1,5 +1,8 @@
+import numpy as np
 from sklearn.metrics.pairwise import cosine_similarity
 from sklearn.feature_extraction import DictVectorizer
+from sklearn.cluster import AgglomerativeClustering
+from sklearn.neighbors import NearestNeighbors
 from sklearn.decomposition import PCA
 from django.shortcuts import render
 from sklearn.cluster import KMeans
@@ -7,6 +10,114 @@ from sklearn.manifold import TSNE
 from collections import Counter
 from .models import Recipe
 import csv
+
+
+COLOR = {
+    0: {
+        "hex": "#FF0000",
+        "name": "Red"
+        },   # Red
+    1: {
+        "hex": "#00FF00",
+        "name": "Lime"
+        },   # Lime
+    2: {
+        "hex": "#0000FF",
+        "name": "Blue"
+        },   # Blue
+    3: {
+        "hex": "#FFFF00",
+        "name": "Yellow"
+        },   # Yellow
+    4: {
+        "hex": "#FF00FF",
+        "name": "Fuchsia"
+        },   # Fuchsia
+    5: {
+        "hex": "#00FFFF",
+        "name": "Cyan / Aqua"
+        },   # Cyan / Aqua
+    6: {
+        "hex": "#FFA500",
+        "name": "Orange"
+        },   # Orange
+    7: {
+        "hex": "#800080",
+        "name": "Purple"
+        },   # Purple
+    8: {
+        "hex": "#808080",
+        "name": "Gray"
+        },   # Gray
+    9: {
+        "hex": "#000000",
+        "name": "Black"
+        },   # Black
+    10: {
+        "hex": "#FFFFFF",
+        "name": "White"
+        },  # White
+    11: {
+        "hex": "#FFC0CB",
+        "name": "Pink"
+        },  # Pink
+    12: {
+        "hex": "#800000",
+        "name": "Maroon"
+        },  # Maroon
+    13: {
+        "hex": "#008000",
+        "name": "Green"
+        },  # Green
+    14: {
+        "hex": "#008080",
+        "name": "Teal"
+        },  # Teal
+    15: {
+        "hex": "#000080",
+        "name": "Navy"
+        },  # Navy
+    16: {
+        "hex": "#FFD700",
+        "name": "Gold"
+        },  # Gold
+    17: {
+        "hex": "#FF4500",
+        "name": "OrangeRed"
+        },  # OrangeRed
+    18: {
+        "hex": "#DC143C",
+        "name": "Crimson"
+        },  # Crimson
+    19: {
+        "hex": "#FF6347",
+        "name": "Tomato"
+        },  # Tomato
+    20: {
+        "hex": "#FF8C00",
+        "name": "DarkOrange"
+        },  # DarkOrange
+    21: {
+        "hex": "#FFA07A",
+        "name": "LightSalmon"
+        },  # LightSalmon
+    22: {
+        "hex": "#FFA500",
+        "name": "Orange"
+        },  # Orange
+    23: {
+        "hex": "#C71585",
+        "name": "Deep Pink"
+        },  # Deep Pink
+    24: {
+        "hex": "#00CED1",
+        "name": "Dark Turquoise"
+        },  # Dark Turquoise
+    25: {
+        "hex": "#2F4F4F",
+        "name": "Dark Gray"
+        },  # Dark Gray
+}
 
 
 def read_csv_and_save_to_db(file_path):
@@ -41,7 +152,7 @@ def optimal_k(data, max_k=10):
     return k_optimal
 
 
-def tokenize_and_cluster(recipes):
+def tokenize_and_cluster(recipes, selected_cluster: int = None):
     # Tokenize ingredients into binary vectors
     ingredients_list = [recipe.ingredients.split(',') for recipe in recipes]
     ingredients_binary = []
@@ -50,46 +161,39 @@ def tokenize_and_cluster(recipes):
         ingredients_binary.append(binary_vector)
 
     # Use DictVectorizer to convert binary vectors into a matrix
-    vectorizer = DictVectorizer(sparse=False)
-    X = vectorizer.fit_transform(ingredients_binary)
+    vectorizer: DictVectorizer = DictVectorizer(sparse=False)
+    X: np.ndarray = vectorizer.fit_transform(ingredients_binary)
 
     # Cluster similar dishes
-    opt_k = optimal_k(X, max_k=5)
-    kmeans = KMeans(n_clusters=opt_k)  # You can adjust the number of clusters as needed
-    clusters = kmeans.fit_predict(X)
-
+    # opt_k = optimal_k(X, max_k=5)
+    # kmeans = KMeans(n_clusters=opt_k)  # You can adjust the number of clusters as needed
+    # clusters = kmeans.fit_predict(X)
+    hca = AgglomerativeClustering(n_clusters=None, distance_threshold=14)
+    clusters = hca.fit_predict(X)
     # Apply dimensionality reduction using PCA for visualization
-    pca = PCA(n_components=2)
-    X_reduced = pca.fit_transform(X)
+    pca: PCA = PCA(n_components=2)
+    X_reduced: np.ndarray = pca.fit_transform(X)
 
     # Extract coordinates for plotting
     x_coords = X_reduced[:, 0]
     y_coords = X_reduced[:, 1]
 
-    color_map = {
-        0: "red",
-        1: "blue",
-        2: "green",
-        3: "yellow",
-        4: "purple",
-        5: "orange",
-        6: "pink",
-        7: "brown",
-        8: "black",
-        9: "grey"
-    }
-
     # Prepare data for plotting
-    data = []
+    data: list = []
+    new_recipes: list = []
+    print("Selected Cluster: ", selected_cluster is None)
     for i in range(len(recipes)):
-        data.append({
-            "x": x_coords[i],
-            "y": y_coords[i],
-            "color": color_map[clusters[i]],
-            "recipe_name": recipes[i].recipe_name
-        })
+        if selected_cluster is None or clusters[i] == selected_cluster:
+            data.append({
+                "x": x_coords[i],
+                "y": y_coords[i],
+                "cluster": clusters[i],
+                "color": COLOR[clusters[i]]['hex'],
+                "recipe_name": recipes[i].recipe_name,
+            })
+            new_recipes.append(recipes[i])
 
-    return data
+    return data, clusters, new_recipes
 
 
 def get_similarity_recipes(recipes):
@@ -107,7 +211,7 @@ def get_similarity_recipes(recipes):
 
     # Compute pairwise cosine similarity
     similarity_matrix = cosine_similarity(X)
-    
+
     # Apply dimensionality reduction using PCA for visualization
     pca = PCA(n_components=2)
     X_reduced = pca.fit_transform(X)
@@ -188,9 +292,13 @@ def index(request):
 
     print("Reading from DB")
     recipes = Recipe.objects.all()
-    selected_recipe = request.GET.get('recipe', None)
-    selected_dish = request.GET.get('dish', None)
-
+    selected_recipe: str = request.GET.get('recipe', None)
+    selected_dish: str = request.GET.get('dish', None)
+    selected_cluster: str = request.GET.get('clusters', None)
+    if selected_cluster.isdigit():
+        selected_cluster = int(selected_cluster)
+    else:
+        selected_cluster = None
     if selected_dish:
         recipes = Recipe.objects.filter(dish_name=selected_dish)
         recipes_selector = recipes
@@ -209,10 +317,10 @@ def index(request):
     bar_chart_x_title = "Ingredients"
     bar_chart_y_title = "Frequency"
 
-    scatter_chart_graph_title = "Most Popular Ingredients"
+    scatter_chart_graph_title = "Recipe Clustering"
     scatter_chart_graph_subtitle = "Based on selected filters"
-    scatter_chart_x_title = "Ingredients"
-    scatter_chart_y_title = "Frequency"
+    scatter_chart_x_title = ""
+    scatter_chart_y_title = ""
 
     similarity_bar_chart_graph_title = "Recipe Similarity"
     similarity_bar_chart_graph_subtitle = "Based on selected filters"
@@ -223,19 +331,25 @@ def index(request):
     dissimilarity_bar_chart_graph_subtitle = "Based on selected filters"
     dissimilarity_bar_chart_x_title = "Recipe"
     dissimilarity_bar_chart_y_title = "Dissimilarity Score"
+    data, clusters, new_recipes = tokenize_and_cluster(recipes_selector, selected_cluster=selected_cluster)
 
+    print("Selected Cluster: ", selected_cluster)
+    bar_data = get_bar_data(new_recipes)
     return render(request, 'index.html', {
         "bar_chart_title": bar_chart_graph_title,
         "bar_chart_subtitle": bar_chart_graph_subtitle,
         "bar_chart_x_title": bar_chart_x_title,
         "bar_chart_y_title": bar_chart_y_title,
-        "bar_chart_data": get_bar_data(recipes),
+        "bar_chart_data": bar_data,
 
         "scatter_chart_title": scatter_chart_graph_title,
         "scatter_chart_subtitle": scatter_chart_graph_subtitle,
         "scatter_chart_x_title": scatter_chart_x_title,
         "scatter_chart_y_title": scatter_chart_y_title,
-        "scatter_chart_data": tokenize_and_cluster(recipes_selector),
+        "scatter_chart_data": data,
+
+        "clusters": [{"cluster": int(cluster), "color": COLOR[int(cluster)]["name"]} for cluster in range(max(clusters)+1)],
+        "selected_cluster": selected_cluster,
 
         "similarity_bar_chart_title": similarity_bar_chart_graph_title,
         "similarity_bar_chart_subtitle": similarity_bar_chart_graph_subtitle,

@@ -125,6 +125,14 @@
             {% endfor %}
         </select>
 
+        <label for="clusters">Cluster: </label>
+        <select id="clusters" name="clusters">
+            <option value="">All</option>
+            {% for cluster in clusters %}
+                <option value="{{ cluster.cluster }}" {% if cluster.cluster == selected_cluster %}selected{% endif %}>{{ cluster.color }}</option>
+            {% endfor %}
+        </select>
+
         {% comment %} <button type="submit">Filter</button> {% endcomment %}
     </form>
 
@@ -140,6 +148,9 @@
             this.form.submit();
         });
         document.getElementById('recipe').addEventListener('change', function() {
+            this.form.submit();
+        });
+        document.getElementById('clusters').addEventListener('change', function() {
             this.form.submit();
         });
     </script>
