@@ -1,0 +1,147 @@
+<!-- index.html -->
+{% load static %}
+<html>
+  <head>
+    <script>
+      window.onload = function () {
+          var chart = new CanvasJS.Chart("chartContainer", {
+              zoomEnabled: true,
+              animationEnabled: true,
+              exportEnabled: true,
+              title: {
+                  text: "{{ bar_chart_title|safe }}",
+                  fontFamily: "Verdana, sans-serif"
+              },
+              subtitles: [{
+                  text: "{{ bar_chart_subtitle|safe }}",
+                  fontFamily: "Verdana, sans-serif"
+              }],
+              axisY: {
+                  title: "{{ bar_chart_y_title|safe }}",
+                  suffix: " times",
+              },
+              axisX: {
+                  title: "{{ bar_chart_x_title|safe }}",
+                  labelAngle: -30,
+                  labelTextAlign: "center",
+              },
+              data: [{
+                  type: "column",
+                  yValueFormatString: "#,##0 times",
+                  dataPoints: {{ bar_chart_data|safe }}
+              }]
+          });
+          chart.render();
+
+          var chart = new CanvasJS.Chart("scatterchartContainer", {
+            zoomEnabled: true,
+            animationEnabled: true,
+            exportEnabled: true,
+            title: {
+                text: "{{ scatter_chart_title|safe }}"
+            },
+            axisY: {
+                title: "{{ scatter_chart_y_title|safe }}"
+            },
+            axisX: {
+                title: "{{ scatter_chart_x_title|safe }}"
+            },
+            data: [{
+                type: "scatter",
+                xValueFormatString: "#,##0.00 ",
+                yValueFormatString: "#,##0.00",
+                toolTipContent: "<b>Recipe:</b> {recipe_name}",
+                dataPoints: {{ scatter_chart_data|safe }}
+            }]
+        });
+        chart.render();
+
+        var chart = new CanvasJS.Chart("similarityChartContainer", {
+            zoomEnabled: true,
+            animationEnabled: true,
+            exportEnabled: true,
+            title: {
+                text: "{{ similarity_bar_chart_title|safe }}"
+            },
+            axisY: {
+                title: "{{ similarity_bar_chart_y_title|safe }}"
+            },
+            axisX: {
+                title: "{{ similarity_bar_chart_x_title|safe }}"
+            },
+            data: [{
+                type: "scatter",
+                xValueFormatString: "#,##0.00 ",
+                yValueFormatString: "#,##0.00",
+                toolTipContent: "<b>Recipe:</b> {recipe_name} <br> <b>Score:</b> {similarity_score} ",
+                dataPoints: {{ similarity_bar_chart_data|safe }}
+            }]
+        });
+        chart.render();
+
+          var chart = new CanvasJS.Chart("dissimilarityChartContainer", {
+            zoomEnabled: true,
+            animationEnabled: true,
+            exportEnabled: true,
+            title: {
+                text: "{{ dissimilarity_bar_chart_title|safe }}"
+            },
+            axisY: {
+                title: "{{ dissimilarity_bar_chart_y_title|safe }}"
+            },
+            axisX: {
+                title: "{{ dissimilarity_bar_chart_x_title|safe }}"
+            },
+            data: [{
+                type: "scatter",
+                xValueFormatString: "#,##0.00 ",
+                yValueFormatString: "#,##0.00",
+                toolTipContent: "<b>Recipe:</b> {recipe_name} <br> <b>Score:</b> {similarity_score} ",
+                dataPoints: {{ dissimilarity_bar_chart_data|safe }}
+            }]
+        });
+        chart.render();
+      }
+    </script>
+  </head>
+  <body>
+    <h1>Chart</h1>
+    <form method="get" action="{% url 'index' %}">
+        <label for="dish">Dish:</label>
+        <select id="dish" name="dish">
+            <option value="">All</option>
+            {% for dish_name in dishes %}
+                <option value="{{ dish_name }}" {% if dish_name == selected_dish %}selected{% endif %}>{{ dish_name }}</option>
+            {% endfor %}
+        </select>
+
+        <label for="recipe">Recipe:</label>
+        <select id="recipe" name="recipe">
+            <option value="">All</option>
+            {% for recipe in recipes %}
+                {% if recipe.dish_name == selected_dish %}
+                    <option value="{{ recipe.recipe_name }}" {% if recipe.recipe_name == selected_recipe %}selected{% endif %}>{{ recipe.recipe_name }}</option>
+                {% endif %}
+            {% endfor %}
+        </select>
+
+        {% comment %} <button type="submit">Filter</button> {% endcomment %}
+    </form>
+
+    <div id="scatterchartContainer" style="width: 100%; height: 360px"></div>
+    <div id="chartContainer" style="width: 100%; height: 360px"></div>
+    <div id="similarityChartContainer" style="width: 100%; height: 360px"></div>
+    <div id="dissimilarityChartContainer" style="width: 100%; height: 360px"></div>
+
+    <script src="{% static 'canvasjs.min.js' %}"></script>
+    <script>
+        document.getElementById('dish').addEventListener('change', function() {
+            document.getElementById('recipe').value = '';
+            this.form.submit();
+        });
+        document.getElementById('recipe').addEventListener('change', function() {
+            this.form.submit();
+        });
+    </script>
+  </body>
+</html>
