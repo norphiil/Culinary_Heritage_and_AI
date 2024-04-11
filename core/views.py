@@ -226,7 +226,9 @@ def get_bar_data(recipes):
 
 
 def index(request):
-    # clean_all_recipes()
+    reset: str = request.GET.get('reset', None)
+    if reset:
+        clean_all_recipes()
     if Recipe.objects.count() == 0:
         print("Reading CSV and saving to DB")
         read_csv_and_save_to_db('clean_data.csv')
@@ -249,8 +251,8 @@ def index(request):
         dissimilar_recipes = find_dissimilar_recipes(recipes, similarity_matrix)
         if selected_recipe:
             recipes = recipes.filter(recipe_name=selected_recipe)
-            similar_recipes = [recipe for recipe in similar_recipes if recipe['recipe_name'] == selected_recipe]
-            dissimilar_recipes = [recipe for recipe in dissimilar_recipes if recipe['recipe_name'] == selected_recipe]
+            similar_recipes = [recipe for recipe in similar_recipes if recipe['recipe'].recipe_name == selected_recipe]
+            dissimilar_recipes = [recipe for recipe in dissimilar_recipes if recipe['recipe'].recipe_name == selected_recipe]
     else:
         recipes_selector = recipes
         similar_recipes = []
@@ -265,9 +267,6 @@ def index(request):
     scatter_chart_x_title = ""
     scatter_chart_y_title = ""
     data, clusters, new_recipes = tokenize_and_cluster(recipes_selector, selected_cluster=selected_cluster)
-    print("Similar Recipes", similar_recipes)
-    print(len(similar_recipes))
-    print(len(recipes))
     bar_data = get_bar_data(new_recipes)
     return render(request, 'index.html', {
         "bar_chart_title": bar_chart_graph_title,
