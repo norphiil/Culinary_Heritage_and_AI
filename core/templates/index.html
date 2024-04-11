@@ -55,52 +55,6 @@
             }]
         });
         chart.render();
-
-        var chart = new CanvasJS.Chart("similarityChartContainer", {
-            zoomEnabled: true,
-            animationEnabled: true,
-            exportEnabled: true,
-            title: {
-                text: "{{ similarity_bar_chart_title|safe }}"
-            },
-            axisY: {
-                title: "{{ similarity_bar_chart_y_title|safe }}"
-            },
-            axisX: {
-                title: "{{ similarity_bar_chart_x_title|safe }}"
-            },
-            data: [{
-                type: "scatter",
-                xValueFormatString: "#,##0.00 ",
-                yValueFormatString: "#,##0.00",
-                toolTipContent: "<b>Recipe:</b> {recipe_name} <br> <b>Score:</b> {similarity_score} ",
-                dataPoints: {{ similarity_bar_chart_data|safe }}
-            }]
-        });
-        chart.render();
-
-          var chart = new CanvasJS.Chart("dissimilarityChartContainer", {
-            zoomEnabled: true,
-            animationEnabled: true,
-            exportEnabled: true,
-            title: {
-                text: "{{ dissimilarity_bar_chart_title|safe }}"
-            },
-            axisY: {
-                title: "{{ dissimilarity_bar_chart_y_title|safe }}"
-            },
-            axisX: {
-                title: "{{ dissimilarity_bar_chart_x_title|safe }}"
-            },
-            data: [{
-                type: "scatter",
-                xValueFormatString: "#,##0.00 ",
-                yValueFormatString: "#,##0.00",
-                toolTipContent: "<b>Recipe:</b> {recipe_name} <br> <b>Score:</b> {similarity_score} ",
-                dataPoints: {{ dissimilarity_bar_chart_data|safe }}
-            }]
-        });
-        chart.render();
       }
     </script>
   </head>
@@ -138,8 +92,74 @@
 
     <div id="scatterchartContainer" style="width: 100%; height: 360px"></div>
     <div id="chartContainer" style="width: 100%; height: 360px"></div>
-    <div id="similarityChartContainer" style="width: 100%; height: 360px"></div>
-    <div id="dissimilarityChartContainer" style="width: 100%; height: 360px"></div>
+
+    {% if selected_dish %}
+     <details>
+        <summary style="font-size: 40"><b>Similar Recipes</b></summary>
+        <div id="similar_recipes">
+            {% for recipes_data in similar_recipes %}
+                <details>
+                    <summary style="font-size: 20"><b>{{ recipes_data.recipe.recipe_name }} | Average Score = {{ recipes_data.avg_similarity|floatformat:3 }}</b></summary>
+                    <p>ingredients: {{ recipes_data.recipe.ingredients }}</p>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Recipe Name</th>
+                                <th>Similarity</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for recipe in recipes_data.data %}
+                                <tr>
+                                    <td>
+                                        <details>
+                                            <summary>{{ recipe.recipe.recipe_name }}</summary>
+                                            <p>{{ recipe.recipe.ingredients }}</p>
+                                        </details>
+                                    </td>
+                                    <td>{{ recipe.similarity|floatformat:3 }}</td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </details>
+            {% endfor %}
+        </div>
+    </details>
+
+    <details>
+        <summary style="font-size: 40"><b>Disimilar Recipes</b></summary>
+        <div id="dissimilar_recipes">
+            {% for recipes_data in dissimilar_recipes %}
+                <details>
+                    <summary style="font-size: 20"><b>{{ recipes_data.recipe.recipe_name }} | Average Score = {{ recipes_data.avg_dissimilarity|floatformat:3 }}</b></summary>
+                    <p>ingredients: {{ recipes_data.recipe.ingredients }}</p>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Recipe Name</th>
+                                <th>Similarity</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for recipe in recipes_data.data %}
+                                <tr>
+                                    <td>
+                                        <details>
+                                            <summary>{{ recipe.recipe.recipe_name }}</summary>
+                                            <p>{{ recipe.recipe.ingredients }}</p>
+                                        </details>
+                                    </td>
+                                    <td>{{ recipe.similarity|floatformat:3 }}</td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </details>
+            {% endfor %}
+        </div>
+    </details>
+    {% endif %}
 
     <script src="{% static 'canvasjs.min.js' %}"></script>
     <script>
@@ -155,4 +175,62 @@
         });
     </script>
   </body>
+<style>
+    .table-container {
+        overflow-x: auto;
+        margin-bottom: 20px;
+    }
+    
+    table {
+        width: 100%;
+        border-collapse: collapse;
+        border-spacing: 0;
+        border: 2px solid #ddd;
+        background-color: #f9f9f9;
+        border-radius: 10px;
+    }
+    
+    th, td {
+        padding: 12px;
+        text-align: left;
+        border-bottom: 1px solid #ddd;
+    }
+    
+    th {
+        background-color: #4CAF50;
+        color: white;
+        font-weight: bold;
+    }
+    
+    tr:hover {
+        background-color: #f2f2f2;
+    }
+    
+    @media screen and (max-width: 600px) {
+        table {
+            border: 0;
+        }
+        table thead {
+            display: none;
+        }
+        table tr {
+            border-bottom: 3px solid #ddd;
+            display: block;
+            margin-bottom: 10px;
+        }
+        table td {
+            border-bottom: 1px solid #ddd;
+            display: block;
+            font-size: 16px;
+            text-align: right;
+        }
+        table td::before {
+            content: attr(data-label);
+            float: left;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+    }
+</style>
+
 </html>
