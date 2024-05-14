@@ -1,12 +1,15 @@
 from sklearn.metrics.pairwise import cosine_similarity
 from sklearn.feature_extraction import DictVectorizer
 from sklearn.cluster import AgglomerativeClustering
+from sklearn.preprocessing import StandardScaler
 from sklearn.decomposition import PCA
 from django.shortcuts import render
+from scipy.spatial import distance
 from collections import Counter
 from .models import Recipe
 import numpy as np
 import csv
+
 
 COLOR = {
     0: {
@@ -133,44 +136,24 @@ def clean_all_recipes():
     Recipe.objects.all().delete()
 
 
-def tokenize_and_cluster(recipes, selected_cluster: int = None):
-    # Tokenize ingredients into binary vectors
-    ingredients_list = [recipe.ingredients.split(',') for recipe in recipes]
-    ingredients_binary = []
-    for ingredients in ingredients_list:
-        binary_vector = {ingredient: 1 for ingredient in ingredients}
-        ingredients_binary.append(binary_vector)
-
-    vectorizer: DictVectorizer = DictVectorizer(sparse=False)
-    X: np.ndarray = vectorizer.fit_transform(ingredients_binary)
-
-    hca = AgglomerativeClustering(n_clusters=None, distance_threshold=14)
-    clusters = hca.fit_predict(X)
-
-    pca: PCA = PCA(n_components=2)
-    X_reduced: np.ndarray = pca.fit_transform(X)
+def get_point_data(recipes):
+    X_reduced: np.ndarray = get_PCA_data(recipes)
 
     x_coords = X_reduced[:, 0]
     y_coords = X_reduced[:, 1]
 
     data: list = []
-    new_recipes: list = []
     for i in range(len(recipes)):
-        if selected_cluster is None or clusters[i] == selected_cluster:
-            data.append({
-                "x": x_coords[i],
-                "y": y_coords[i],
-                "cluster": clusters[i],
-                "color": COLOR[clusters[i]]['hex'],
-                "recipe_name": recipes[i].recipe_name,
-            })
-            new_recipes.append(recipes[i])
+        data.append({
+            "x": x_coords[i],
+            "y": y_coords[i],
+            "recipe_name": recipes[i].recipe_name,
+        })
 
-    return data, clusters, new_recipes
+    return data
 
 
-def get_similarity_recipes(recipes):
-    # Tokenize ingredients
+def tokenize(recipes):
     ingredients_list = [recipe.ingredients.split(',') for recipe in recipes]
     ingredients_binary = []
     for ingredients in ingredients_list:
@@ -179,10 +162,98 @@ def get_similarity_recipes(recipes):
 
     vectorizer: DictVectorizer = DictVectorizer(sparse=False)
     X: np.ndarray = vectorizer.fit_transform(ingredients_binary)
-    # Use TF-IDF to vectorize ingredients
+    return X
 
+
+def normalize(X: np.ndarray):
+    return (X - np.min(X)) / (np.max(X) - np.min(X))
+
+
+def get_PCA_data(recipes):
+    pca: PCA = PCA(n_components=2)
+    return pca.fit_transform(tokenize(recipes))
+
+
+def get_centroid(recipes=None):
+    centroids = []
+    selected_dish = recipes[0].dish_name if recipes else None
+
+    # Get all unique dishes
+    if not recipes:
+        dishes = Recipe.objects.values_list('dish_name', flat=True).distinct()
+    else:
+        dishes = Recipe.objects.values_list('dish_name', flat=True).distinct().filter(dish_name=selected_dish)
+
+    for dish in dishes:
+        # Get all recipes of the dish
+        dish_recipes = Recipe.objects.filter(dish_name=dish)
+
+        X_reduced = get_PCA_data(dish_recipes)
+        scaler = StandardScaler()
+        X_scaled = scaler.fit_transform(X_reduced)
+
+        # Calculate the centroid
+        centroid = np.mean(X_scaled, axis=0)
+        centroids.append(centroid)
+    return centroids
+
+
+def get_centroid_plot(centroids: list, recipes: list = None, closer_recipes: list[dict] = None, far_recipes: list[dict] = None):
+    selected_dish = recipes[0].dish_name if recipes else None
+    if not recipes:
+        dishes = Recipe.objects.values_list('dish_name', flat=True).distinct()
+    else:
+        dishes = Recipe.objects.values_list('dish_name', flat=True).distinct().filter(dish_name=selected_dish)
+
+    result = []
+    for dish, centroid in zip(dishes, centroids):
+        color = COLOR[1]["hex"] if selected_dish == dish else COLOR[3]["hex"]
+        result.append({
+            "x": centroid[0],
+            "y": centroid[1],
+            "label": f"Centroid <br> Dish: {dish}",
+            "color": color
+        })
+
+    # Add data points for recipes if provided
+    if recipes:
+        X_reduced = get_PCA_data(recipes)
+        for i, recipe in enumerate(recipes):
+            is_nearest = True if closer_recipes and recipe.recipe_name in [recipe['recipe'].recipe_name for recipe in closer_recipes] else False
+            is_farthest = True if far_recipes and recipe.recipe_name in [recipe['recipe'].recipe_name for recipe in far_recipes] else False
+            nearest_or_farthest = "Nearest <br>" if is_nearest else "Farthest <br>" if is_farthest else ""
+            result.append({
+                "x": X_reduced[i][0],
+                "y": X_reduced[i][1],
+                "label": f"{nearest_or_farthest} Recipe: {recipe.recipe_name} <br> Ingredients: {recipe.ingredients}",
+                "color": COLOR[4]["hex"] if is_nearest else COLOR[0]["hex"] if is_farthest else COLOR[2]["hex"]
+            })
+    return result
+
+
+def find_N_closer_and_far_recipe_of_centroid(centroid, recipes, n=5):
+    # Calculate the distance between each recipe and the centroid
+    distances = []
+    recipes_point = get_PCA_data(recipes)
+    for recipe_point, recipe in zip(recipes_point, recipes):
+        dist = distance.euclidean(centroid, recipe_point)
+        distances.append({
+            "recipe": recipe,
+            "distance": dist
+        })
+
+    # Sort the recipes by distance
+    distances.sort(key=lambda x: x['distance'])
+    closer_recipes = distances[:n]
+    far_recipes = distances[-n:]
+    far_recipes.reverse()
+    # Return the n closest recipes
+    return closer_recipes, far_recipes
+
+
+def get_similarity_recipes(recipes):
     # Calculate cosine similarity matrix
-    similarity_matrix = cosine_similarity(X)
+    similarity_matrix = cosine_similarity(tokenize(recipes))
 
     return similarity_matrix
 
@@ -244,8 +315,11 @@ def index(request):
         selected_cluster = None
     if selected_dish:
         recipes = Recipe.objects.filter(dish_name=selected_dish)
-        recipes_selector = recipes
+        recipes_selector = recipes.order_by('recipe_name')
 
+        centroids = get_centroid(recipes)
+        similar_recipes_centroid, dissimilar_recipes_centroid = find_N_closer_and_far_recipe_of_centroid(centroids[0], recipes)
+        centroids_plot = get_centroid_plot(centroids, recipes, similar_recipes_centroid, dissimilar_recipes_centroid)
         similarity_matrix = get_similarity_recipes(recipes)
         similar_recipes = find_similar_recipes(recipes, similarity_matrix)
         dissimilar_recipes = find_dissimilar_recipes(recipes, similarity_matrix)
@@ -254,9 +328,13 @@ def index(request):
             similar_recipes = [recipe for recipe in similar_recipes if recipe['recipe'].recipe_name == selected_recipe]
             dissimilar_recipes = [recipe for recipe in dissimilar_recipes if recipe['recipe'].recipe_name == selected_recipe]
     else:
-        recipes_selector = recipes
+        recipes_selector = recipes.order_by('recipe_name')
         similar_recipes = []
         dissimilar_recipes = []
+        centroids_plot = None
+        similar_recipes_centroid = None
+        dissimilar_recipes_centroid = None
+
     bar_chart_graph_title = "Most Popular Ingredients"
     bar_chart_graph_subtitle = "Based on selected filters"
     bar_chart_x_title = "Ingredients"
@@ -266,8 +344,8 @@ def index(request):
     scatter_chart_graph_subtitle = "Based on selected filters"
     scatter_chart_x_title = ""
     scatter_chart_y_title = ""
-    data, clusters, new_recipes = tokenize_and_cluster(recipes_selector, selected_cluster=selected_cluster)
-    bar_data = get_bar_data(new_recipes)
+    # data = get_point_data(recipes_selector)
+    bar_data = get_bar_data(recipes)
     return render(request, 'index.html', {
         "bar_chart_title": bar_chart_graph_title,
         "bar_chart_subtitle": bar_chart_graph_subtitle,
@@ -279,15 +357,18 @@ def index(request):
         "scatter_chart_subtitle": scatter_chart_graph_subtitle,
         "scatter_chart_x_title": scatter_chart_x_title,
         "scatter_chart_y_title": scatter_chart_y_title,
-        "scatter_chart_data": data,
+        "scatter_chart_data": centroids_plot,
+
+        "similar_recipes_dish": similar_recipes_centroid,
+        "dissimilar_recipes_dish": dissimilar_recipes_centroid,
 
         "similar_recipes": similar_recipes,
         "dissimilar_recipes": dissimilar_recipes,
 
-        "clusters": [{"cluster": int(cluster), "color": COLOR[int(cluster)]["name"]} for cluster in range(max(clusters)+1)],
-        "selected_cluster": selected_cluster,
+        # "clusters": [{"cluster": int(cluster), "color": COLOR[int(cluster)]["name"]} for cluster in range(len(get_centroid())+1)],
+        # "selected_cluster": selected_cluster,
 
-        "dishes": Recipe.objects.values_list('dish_name', flat=True).distinct(),
+        "dishes": Recipe.objects.values_list('dish_name', flat=True).distinct().order_by('dish_name'),
         "recipes": recipes_selector,
         "selected_recipe": selected_recipe,
         "selected_dish": selected_dish,

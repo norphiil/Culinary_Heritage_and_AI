@@ -43,22 +43,16 @@
             axisY: {
                 title: "{{ scatter_chart_y_title|safe }}",
                 tickThickness: 0,
-                labelFormatter: function(e) {
-                    return "";
-                }
             },
             axisX: {
                 title: "{{ scatter_chart_x_title|safe }}",
                 tickThickness: 0,
-                labelFormatter: function(e) {
-                    return "";
-                }
             },
             data: [{
                 type: "scatter",
                 xValueFormatString: "#,##0.00 ",
                 yValueFormatString: "#,##0.00",
-                toolTipContent: "<b>Recipe:</b> {recipe_name}",
+                toolTipContent: "{label}",
                 dataPoints: {{ scatter_chart_data|safe }}
             }],
         });
@@ -90,19 +84,69 @@
             {% endfor %}
         </select>
 
-        <label for="clusters">Cluster: </label>
+        {% comment %} <label for="clusters">Cluster: </label>
         <select id="clusters" name="clusters">
             <option value="">All</option>
             {% for cluster in clusters %}
                 <option value="{{ cluster.cluster }}" {% if cluster.cluster == selected_cluster %}selected{% endif %}>{{ cluster.color }}</option>
             {% endfor %}
-        </select>
+        </select> {% endcomment %}
 
         {% comment %} <button type="submit">Filter</button> {% endcomment %}
     </form>
 
-    <div id="scatterchartContainer" style="width: 100%; height: 360px"></div>
-    <div id="chartContainer" style="width: 100%; height: 360px"></div>
+    {% if scatter_chart_data %}
+        <div id="scatterchartContainer" style="position: relative; left: 40vw; width: 50vh; height: 50vh"></div>
+    {% endif %}
+    {% if similar_recipes_dish %}
+        <details open>
+            <summary style="font-size: 40"><b>Similar Recipes to Selected Dish</b></summary>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Recipe Name</th>
+                        <th>Ingredients</th>
+                        <th>Distance to Centroid</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for similar_recipe in similar_recipes_dish %}
+                        <tr>
+                            <td>{{ similar_recipe.recipe.recipe_name }}</td>
+                            <td>{{ similar_recipe.recipe.ingredients }}</td>
+                            <td>{{ similar_recipe.distance|floatformat:3 }}</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </details>
+    {% endif %}
+
+    {% if dissimilar_recipes_dish %}
+        <details open>
+            <summary style="font-size: 40"><b>Dissimilar Recipes to Selected Dish</b></summary>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Recipe Name</th>
+                        <th>Ingredients</th>
+                        <th>Distance to Centroid</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for dissimilar_recipe in dissimilar_recipes_dish %}
+                        <tr>
+                            <td>{{ dissimilar_recipe.recipe.recipe_name }}</td>
+                            <td>{{ dissimilar_recipe.recipe.ingredients }}</td>
+                            <td>{{ dissimilar_recipe.distance|floatformat:3 }}</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </details>
+    {% endif %}
+
+    <div id="chartContainer" style="left: 1vw; width: 98vw; height: 50vh"></div>
 
     {% if selected_dish %}
      <details {% if selected_recipe %} open {% endif %}>
