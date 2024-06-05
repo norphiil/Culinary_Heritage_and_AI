@@ -1,0 +1,290 @@
+<!-- index.html -->
+{% load static %}
+<html>
+  <head>
+    <script>
+      window.onload = function () {
+          var chart = new CanvasJS.Chart("chartContainer", {
+              zoomEnabled: true,
+              animationEnabled: true,
+              exportEnabled: true,
+              title: {
+                  text: "{{ bar_chart_title|safe }}",
+                  fontFamily: "Verdana, sans-serif"
+              },
+              subtitles: [{
+                  text: "{{ bar_chart_subtitle|safe }}",
+                  fontFamily: "Verdana, sans-serif"
+              }],
+              axisY: {
+                  title: "{{ bar_chart_y_title|safe }}",
+                  suffix: " times",
+              },
+              axisX: {
+                  title: "{{ bar_chart_x_title|safe }}",
+                  labelAngle: -30,
+                  labelTextAlign: "center",
+              },
+              data: [{
+                  type: "column",
+                  yValueFormatString: "#,##0 times",
+                  dataPoints: {{ bar_chart_data|safe }}
+              }]
+          });
+          chart.render();
+
+          var chart = new CanvasJS.Chart("scatterchartContainer", {
+            zoomEnabled: true,
+            animationEnabled: true,
+            exportEnabled: true,
+            title: {
+                text: "{{ scatter_chart_title|safe }}"
+            },
+            axisY: {
+                title: "{{ scatter_chart_y_title|safe }}",
+                tickThickness: 0,
+            },
+            axisX: {
+                title: "{{ scatter_chart_x_title|safe }}",
+                tickThickness: 0,
+            },
+            data: [{
+                type: "scatter",
+                xValueFormatString: "#,##0.00 ",
+                yValueFormatString: "#,##0.00",
+                toolTipContent: "{label}",
+                dataPoints: {{ scatter_chart_data|safe }}
+            }],
+        });
+        chart.render();
+      }
+    </script>
+  </head>
+  <body>
+    <form method="get" action="{% url 'index' %}">
+        <button id="reset" type="submit" value="true" name="reset">Reset DataBase</button>
+    </form>
+    <h1>Chart</h1>
+    <form method="get" action="{% url 'index' %}">
+        <label for="dish">Dish:</label>
+        <select id="dish" name="dish">
+            <option value="">All</option>
+            {% for dish_name in dishes %}
+                <option value="{{ dish_name }}" {% if dish_name == selected_dish %}selected{% endif %}>{{ dish_name }}</option>
+            {% endfor %}
+        </select>
+
+        <label for="recipe">Recipe:</label>
+        <select id="recipe" name="recipe">
+            <option value="">All</option>
+            {% for recipe in recipes %}
+                {% if recipe.dish_name == selected_dish %}
+                    <option value="{{ recipe.recipe_name }}" {% if recipe.recipe_name == selected_recipe %}selected{% endif %}>{{ recipe.recipe_name }}</option>
+                {% endif %}
+            {% endfor %}
+        </select>
+
+        {% comment %} <label for="clusters">Cluster: </label>
+        <select id="clusters" name="clusters">
+            <option value="">All</option>
+            {% for cluster in clusters %}
+                <option value="{{ cluster.cluster }}" {% if cluster.cluster == selected_cluster %}selected{% endif %}>{{ cluster.color }}</option>
+            {% endfor %}
+        </select> {% endcomment %}
+
+        {% comment %} <button type="submit">Filter</button> {% endcomment %}
+    </form>
+
+    {% if scatter_chart_data %}
+        <div id="scatterchartContainer" style="position: relative; left: 40vw; width: 50vh; height: 50vh"></div>
+    {% endif %}
+    {% if similar_recipes_dish %}
+        <details open>
+            <summary style="font-size: 40"><b>Similar Recipes to Selected Dish</b></summary>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Recipe Name</th>
+                        <th>Ingredients</th>
+                        <th>Distance to Centroid</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for similar_recipe in similar_recipes_dish %}
+                        <tr>
+                            <td>{{ similar_recipe.recipe.recipe_name }}</td>
+                            <td>{{ similar_recipe.recipe.ingredients }}</td>
+                            <td>{{ similar_recipe.distance|floatformat:3 }}</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </details>
+    {% endif %}
+
+    {% if dissimilar_recipes_dish %}
+        <details open>
+            <summary style="font-size: 40"><b>Dissimilar Recipes to Selected Dish</b></summary>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Recipe Name</th>
+                        <th>Ingredients</th>
+                        <th>Distance to Centroid</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for dissimilar_recipe in dissimilar_recipes_dish %}
+                        <tr>
+                            <td>{{ dissimilar_recipe.recipe.recipe_name }}</td>
+                            <td>{{ dissimilar_recipe.recipe.ingredients }}</td>
+                            <td>{{ dissimilar_recipe.distance|floatformat:3 }}</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </details>
+    {% endif %}
+
+    <div id="chartContainer" style="left: 1vw; width: 98vw; height: 50vh"></div>
+
+    {% if selected_dish %}
+     <details {% if selected_recipe %} open {% endif %}>
+        <summary style="font-size: 40"><b>Similar Recipes</b></summary>
+        <div id="similar_recipes">
+            {% for recipes_data in similar_recipes %}
+                <details {% if selected_recipe %} open {% endif %}>
+                    <summary style="font-size: 20"><b>{{ recipes_data.recipe.recipe_name }} | Average Score = {{ recipes_data.avg_similarity|floatformat:3 }}</b></summary>
+                    <p>ingredients: {{ recipes_data.recipe.ingredients }}</p>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Recipe Name</th>
+                                <th>Similarity</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for recipe in recipes_data.data %}
+                                <tr>
+                                    <td>
+                                        <details {% if selected_recipe %} open {% endif %}>
+                                            <summary>{{ recipe.recipe.recipe_name }}</summary>
+                                            <p>{{ recipe.recipe.ingredients }}</p>
+                                        </details>
+                                    </td>
+                                    <td>{{ recipe.similarity|floatformat:3 }}</td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </details>
+            {% endfor %}
+        </div>
+    </details>
+
+    <details {% if selected_recipe %} open {% endif %}>
+        <summary style="font-size: 40"><b>Dissimilar Recipes</b></summary>
+        <div id="dissimilar_recipes">
+            {% for recipes_data in dissimilar_recipes %}
+                <details {% if selected_recipe %} open {% endif %}>
+                    <summary style="font-size: 20"><b>{{ recipes_data.recipe.recipe_name }} | Average Score = {{ recipes_data.avg_dissimilarity|floatformat:3 }}</b></summary>
+                    <p>ingredients: {{ recipes_data.recipe.ingredients }}</p>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Recipe Name</th>
+                                <th>Similarity</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for recipe in recipes_data.data %}
+                                <tr>
+                                    <td>
+                                        <details {% if selected_recipe %} open {% endif %}>
+                                            <summary>{{ recipe.recipe.recipe_name }}</summary>
+                                            <p>{{ recipe.recipe.ingredients }}</p>
+                                        </details>
+                                    </td>
+                                    <td>{{ recipe.similarity|floatformat:3 }}</td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </details>
+            {% endfor %}
+        </div>
+    </details>
+    {% endif %}
+
+    <script src="{% static 'canvasjs.min.js' %}"></script>
+    <script>
+        document.getElementById('dish').addEventListener('change', function() {
+            document.getElementById('recipe').value = '';
+            this.form.submit();
+        });
+        document.getElementById('recipe').addEventListener('change', function() {
+            this.form.submit();
+        });
+        document.getElementById('clusters').addEventListener('change', function() {
+            this.form.submit();
+        });
+    </script>
+  </body>
+<style>
+    .table-container {
+        overflow-x: auto;
+        margin-bottom: 20px;
+    }
+
+    table {
+        width: 100%;
+        border-collapse: collapse;
+        border-spacing: 0;
+        border: 2px solid #ddd;
+        background-color: #f9f9f9;
+        border-radius: 10px;
+    }
+
+    th, td {
+        padding: 12px;
+        text-align: left;
+        border-bottom: 1px solid #ddd;
+    }
+
+    th {
+        background-color: #4CAF50;
+        color: white;
+        font-weight: bold;
+    }
+
+    tr:hover {
+        background-color: #f2f2f2;
+    }
+
+    @media screen and (max-width: 600px) {
+        table {
+            border: 0;
+        }
+        table thead {
+            display: none;
+        }
+        table tr {
+            border-bottom: 3px solid #ddd;
+            display: block;
+            margin-bottom: 10px;
+        }
+        table td {
+            border-bottom: 1px solid #ddd;
+            display: block;
+            font-size: 16px;
+            text-align: right;
+        }
+        table td::before {
+            content: attr(data-label);
+            float: left;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+    }
+</style>
+</html>
