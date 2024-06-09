@@ -1,6 +1,5 @@
 from sklearn.metrics.pairwise import cosine_similarity
 from sklearn.feature_extraction import DictVectorizer
-from sklearn.cluster import AgglomerativeClustering
 from sklearn.preprocessing import StandardScaler
 from sklearn.decomposition import PCA
 from django.shortcuts import render
@@ -164,11 +163,6 @@ def tokenize(recipes):
     X: np.ndarray = vectorizer.fit_transform(ingredients_binary)
     return X
 
-
-def normalize(X: np.ndarray):
-    return (X - np.min(X)) / (np.max(X) - np.min(X))
-
-
 def get_PCA_data(recipes):
     pca: PCA = PCA(n_components=2)
     return pca.fit_transform(tokenize(recipes))
@@ -178,21 +172,18 @@ def get_centroid(recipes=None):
     centroids = []
     selected_dish = recipes[0].dish_name if recipes else None
 
-    # Get all unique dishes
     if not recipes:
         dishes = Recipe.objects.values_list('dish_name', flat=True).distinct()
     else:
         dishes = Recipe.objects.values_list('dish_name', flat=True).distinct().filter(dish_name=selected_dish)
 
     for dish in dishes:
-        # Get all recipes of the dish
         dish_recipes = Recipe.objects.filter(dish_name=dish)
 
         X_reduced = get_PCA_data(dish_recipes)
         scaler = StandardScaler()
         X_scaled = scaler.fit_transform(X_reduced)
 
-        # Calculate the centroid
         centroid = np.mean(X_scaled, axis=0)
         centroids.append(centroid)
     return centroids
@@ -215,7 +206,6 @@ def get_centroid_plot(centroids: list, recipes: list = None, closer_recipes: lis
             "color": color
         })
 
-    # Add data points for recipes if provided
     if recipes:
         X_reduced = get_PCA_data(recipes)
         for i, recipe in enumerate(recipes):
@@ -232,7 +222,6 @@ def get_centroid_plot(centroids: list, recipes: list = None, closer_recipes: lis
 
 
 def find_N_closer_and_far_recipe_of_centroid(centroid, recipes, n=5):
-    # Calculate the distance between each recipe and the centroid
     distances = []
     recipes_point = get_PCA_data(recipes)
     for recipe_point, recipe in zip(recipes_point, recipes):
@@ -242,17 +231,14 @@ def find_N_closer_and_far_recipe_of_centroid(centroid, recipes, n=5):
             "distance": dist
         })
 
-    # Sort the recipes by distance
     distances.sort(key=lambda x: x['distance'])
     closer_recipes = distances[:n]
     far_recipes = distances[-n:]
     far_recipes.reverse()
-    # Return the n closest recipes
     return closer_recipes, far_recipes
 
 
 def get_similarity_recipes(recipes):
-    # Calculate cosine similarity matrix
     similarity_matrix = cosine_similarity(tokenize(recipes))
 
     return similarity_matrix
@@ -364,9 +350,6 @@ def index(request):
 
         "similar_recipes": similar_recipes,
         "dissimilar_recipes": dissimilar_recipes,
-
-        # "clusters": [{"cluster": int(cluster), "color": COLOR[int(cluster)]["name"]} for cluster in range(len(get_centroid())+1)],
-        # "selected_cluster": selected_cluster,
 
         "dishes": Recipe.objects.values_list('dish_name', flat=True).distinct().order_by('dish_name'),
         "recipes": recipes_selector,
