@@ -122,7 +122,7 @@ def read_csv_and_save_to_db(file_path):
     with open(file_path, 'r') as file:
         reader = csv.DictReader(file)
         for row in reader:
-            ingredient = row['Ingredients'].replace(",&", "").replace("&", "")
+            ingredient = row['Ingredients'].replace(",&", "")
             if ingredient != "":
                 Recipe.objects.create(
                     recipe_name=row['Recipe_Name'],
@@ -151,7 +151,6 @@ def get_point_data(recipes):
 
     return data
 
-
 def tokenize(recipes):
     ingredients_list = [recipe.ingredients.split(',') for recipe in recipes]
     ingredients_binary = []
@@ -166,7 +165,6 @@ def tokenize(recipes):
 def get_PCA_data(recipes):
     pca: PCA = PCA(n_components=2)
     return pca.fit_transform(tokenize(recipes))
-
 
 def get_centroid(recipes=None):
     centroids = []
@@ -185,24 +183,41 @@ def get_centroid(recipes=None):
         X_scaled = scaler.fit_transform(X_reduced)
 
         centroid = np.mean(X_scaled, axis=0)
-        centroids.append(centroid)
+        centroids.append({"dish": dish, "centroid": centroid})
     return centroids
 
-
-def get_centroid_plot(centroids: list, recipes: list = None, closer_recipes: list[dict] = None, far_recipes: list[dict] = None):
-    selected_dish = recipes[0].dish_name if recipes else None
-    if not recipes:
-        dishes = Recipe.objects.values_list('dish_name', flat=True).distinct()
-    else:
-        dishes = Recipe.objects.values_list('dish_name', flat=True).distinct().filter(dish_name=selected_dish)
-
+def get_centroid_centroid_plot(centroids: list, selected_dish_centroid: dict = None, closer_centroid: list[dict] = None, far_centroid: list[dict] = None):
     result = []
-    for dish, centroid in zip(dishes, centroids):
-        color = COLOR[1]["hex"] if selected_dish == dish else COLOR[3]["hex"]
+    i = 0
+    for dish_centroid in centroids:
+        dish = dish_centroid["dish"]
+        centroid = dish_centroid["centroid"]
+        is_nearest = True if closer_centroid and dish in [c_centroid['dish'] for c_centroid in closer_centroid] else False
+        is_farthest = True if far_centroid and dish in [c_centroid['dish'] for c_centroid in far_centroid] else False
+        nearest_or_farthest = "Nearest <br>" if is_nearest else "Farthest <br>" if is_farthest else ""
+        if selected_dish_centroid:
+            color = COLOR[1]["hex"] if selected_dish_centroid["dish"] == dish else COLOR[4]["hex"] if is_nearest else COLOR[0]["hex"] if is_farthest else COLOR[2]["hex"]
+        else:
+            color = COLOR[i%len(COLOR)]["hex"]
         result.append({
             "x": centroid[0],
             "y": centroid[1],
-            "label": f"Centroid <br> Dish: {dish}",
+            "label": f"{nearest_or_farthest} Dish: {dish}",
+            "color": color
+        })
+        i+=1
+    return result
+
+def get_centroid_recipes_plot(centroids, recipes: list = None, closer_recipes: list[dict] = None, far_recipes: list[dict] = None):
+    selected_dish = recipes[0].dish_name if recipes else None
+
+    result = []
+    for dish_centroid in centroids:
+        color = COLOR[1]["hex"] if selected_dish == dish_centroid["dish"] else COLOR[3]["hex"]
+        result.append({
+            "x": dish_centroid["centroid"][0],
+            "y": dish_centroid["centroid"][1],
+            "label": f"Centroid <br> Dish: {dish_centroid["dish"]}",
             "color": color
         })
 
@@ -225,7 +240,8 @@ def find_N_closer_and_far_recipe_of_centroid(centroid, recipes, n=5):
     distances = []
     recipes_point = get_PCA_data(recipes)
     for recipe_point, recipe in zip(recipes_point, recipes):
-        dist = distance.euclidean(centroid, recipe_point)
+
+        dist = distance.euclidean(centroid["centroid"], recipe_point)
         distances.append({
             "recipe": recipe,
             "distance": dist
@@ -237,6 +253,25 @@ def find_N_closer_and_far_recipe_of_centroid(centroid, recipes, n=5):
     far_recipes.reverse()
     return closer_recipes, far_recipes
 
+def find_N_closer_and_far_centroid_of_centroid(centroid_center, centroids, n=5):
+    distances = []
+    for dish_centroid in centroids:
+        centroid = dish_centroid["centroid"]
+        dish = dish_centroid["dish"]
+        print(centroid_center["centroid"], centroid)
+        if centroid_center["dish"] == dish:
+            continue
+        dist = distance.euclidean(centroid_center["centroid"], centroid)
+        distances.append({
+            "dish": dish,
+            "distance": dist
+        })
+
+    distances.sort(key=lambda x: x['distance'])
+    closer_recipes = distances[:n]
+    far_recipes = distances[-n:]
+    far_recipes.reverse()
+    return closer_recipes, far_recipes
 
 def get_similarity_recipes(recipes):
     similarity_matrix = cosine_similarity(tokenize(recipes))
@@ -292,29 +327,33 @@ def index(request):
 
     print("Reading from DB")
     recipes = Recipe.objects.all()
-    selected_recipe: str = request.GET.get('recipe', None)
     selected_dish: str = request.GET.get('dish', None)
-    selected_cluster: str = request.GET.get('clusters', None)
-    if selected_cluster and selected_cluster.isdigit():
-        selected_cluster = int(selected_cluster)
-    else:
-        selected_cluster = None
+    selected_recipe: str = request.GET.get('recipe', None)
     if selected_dish:
         recipes = Recipe.objects.filter(dish_name=selected_dish)
         recipes_selector = recipes.order_by('recipe_name')
+        
+        centroids_dish = get_centroid()
+        selected_dish_centroid = [centroid for centroid in centroids_dish if centroid['dish'] == selected_dish][0]
+        similar_centroids, dissimilar_centroids = find_N_closer_and_far_centroid_of_centroid(selected_dish_centroid, centroids_dish)
+        centroids_dish_plot = get_centroid_centroid_plot(centroids_dish, selected_dish_centroid, similar_centroids, dissimilar_centroids)
 
         centroids = get_centroid(recipes)
         similar_recipes_centroid, dissimilar_recipes_centroid = find_N_closer_and_far_recipe_of_centroid(centroids[0], recipes)
-        centroids_plot = get_centroid_plot(centroids, recipes, similar_recipes_centroid, dissimilar_recipes_centroid)
+        centroids_plot = get_centroid_recipes_plot(centroids, recipes, similar_recipes_centroid, dissimilar_recipes_centroid)
+        
         similarity_matrix = get_similarity_recipes(recipes)
         similar_recipes = find_similar_recipes(recipes, similarity_matrix)
         dissimilar_recipes = find_dissimilar_recipes(recipes, similarity_matrix)
+
         if selected_recipe:
             recipes = recipes.filter(recipe_name=selected_recipe)
             similar_recipes = [recipe for recipe in similar_recipes if recipe['recipe'].recipe_name == selected_recipe]
             dissimilar_recipes = [recipe for recipe in dissimilar_recipes if recipe['recipe'].recipe_name == selected_recipe]
     else:
         recipes_selector = recipes.order_by('recipe_name')
+        centroids_dish = get_centroid()
+        centroids_dish_plot = get_centroid_centroid_plot(centroids_dish)
         similar_recipes = []
         dissimilar_recipes = []
         centroids_plot = None
@@ -350,6 +389,8 @@ def index(request):
 
         "similar_recipes": similar_recipes,
         "dissimilar_recipes": dissimilar_recipes,
+
+        "centroid_dish": centroids_dish_plot,
 
         "dishes": Recipe.objects.values_list('dish_name', flat=True).distinct().order_by('dish_name'),
         "recipes": recipes_selector,

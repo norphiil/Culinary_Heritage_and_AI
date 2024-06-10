@@ -4,36 +4,63 @@
   <head>
     <script>
       window.onload = function () {
-          var chart = new CanvasJS.Chart("chartContainer", {
-              zoomEnabled: true,
-              animationEnabled: true,
-              exportEnabled: true,
-              title: {
-                  text: "{{ bar_chart_title|safe }}",
-                  fontFamily: "Verdana, sans-serif"
-              },
-              subtitles: [{
-                  text: "{{ bar_chart_subtitle|safe }}",
-                  fontFamily: "Verdana, sans-serif"
-              }],
-              axisY: {
-                  title: "{{ bar_chart_y_title|safe }}",
-                  suffix: " times",
-              },
-              axisX: {
-                  title: "{{ bar_chart_x_title|safe }}",
-                  labelAngle: -30,
-                  labelTextAlign: "center",
-              },
-              data: [{
-                  type: "column",
-                  yValueFormatString: "#,##0 times",
-                  dataPoints: {{ bar_chart_data|safe }}
-              }]
-          });
-          chart.render();
+            var chart = new CanvasJS.Chart("centroidchartContainer", {
+                zoomEnabled: true,
+                animationEnabled: true,
+                exportEnabled: true,
+                title: {
+                    text: "Dish Centroids"
+                },
+                axisY: {
+                    labelFormatter: function(){
+                    return " ";
+                    }
+                },
+                axisX: {
+                    labelFormatter: function(){
+                    return " ";
+                    }
+                },
+                data: [{
+                    type: "scatter",
+                    xValueFormatString: "#,##0.00 ",
+                    yValueFormatString: "#,##0.00",
+                    toolTipContent: "{label}",
+                    dataPoints: {{ centroid_dish|safe }}
+                }],
+            });
+            chart.render();
 
-          var chart = new CanvasJS.Chart("scatterchartContainer", {
+            var chart = new CanvasJS.Chart("chartContainer", {
+                zoomEnabled: true,
+                animationEnabled: true,
+                exportEnabled: true,
+                title: {
+                    text: "{{ bar_chart_title|safe }}",
+                    fontFamily: "Verdana, sans-serif"
+                },
+                subtitles: [{
+                    text: "{{ bar_chart_subtitle|safe }}",
+                    fontFamily: "Verdana, sans-serif"
+                }],
+                axisY: {
+                    title: "{{ bar_chart_y_title|safe }}",
+                    suffix: " times",
+                },
+                axisX: {
+                    title: "{{ bar_chart_x_title|safe }}",
+                    labelAngle: -30,
+                    labelTextAlign: "center",
+                },
+                data: [{
+                    type: "column",
+                    yValueFormatString: "#,##0 times",
+                    dataPoints: {{ bar_chart_data|safe }}
+                }]
+            });
+            chart.render();
+
+            var chart = new CanvasJS.Chart("scatterchartContainer", {
             zoomEnabled: true,
             animationEnabled: true,
             exportEnabled: true,
@@ -94,6 +121,7 @@
 
         {% comment %} <button type="submit">Filter</button> {% endcomment %}
     </form>
+    <div id="centroidchartContainer" style="position: relative; left: 40vw; width: 50vh; height: 50vh"></div>
 
     {% if scatter_chart_data %}
         <div id="scatterchartContainer" style="position: relative; left: 40vw; width: 50vh; height: 50vh"></div>
