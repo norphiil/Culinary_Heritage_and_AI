@@ -284,10 +284,10 @@ def find_similar_recipes(recipes, similarity_matrix):
     recipes_list = list(recipes)
     nb = 5
     for i, recipe in enumerate(recipes_list):
-        similar_indices: int = np.argsort(similarity_matrix[i])[::-1][1:nb+1]
+        similar_indices: int = np.argsort(similarity_matrix[i])[::-1]
         similarities = [{"recipe": recipes_list[index], "similarity": similarity_matrix[i][index]} for index in similar_indices if recipes_list[index].recipe_name != recipe.recipe_name]
-        avg_similarity = sum(similarity["similarity"] for similarity in similarities) / nb
-        similar_recipes.append({"recipe": recipe, "avg_similarity": avg_similarity, "data": similarities})
+        avg_similarity = sum(similarity["similarity"] for similarity in similarities) / len(similarities)
+        similar_recipes.append({"recipe": recipe, "avg_similarity": avg_similarity, "data": similarities[1:nb+1]})
 
     similar_recipes.sort(key=lambda x: x['avg_similarity'], reverse=True)
     return similar_recipes
@@ -298,10 +298,10 @@ def find_dissimilar_recipes(recipes, similarity_matrix):
     recipes_list = list(recipes)
     nb = 5
     for i, recipe in enumerate(recipes):
-        dissimilar_indices: int = np.argsort(similarity_matrix[i])[::-1][-nb:]
+        dissimilar_indices: int = np.argsort(similarity_matrix[i])[::-1]
         dissimilarities = [{"recipe": recipes_list[index], "similarity": similarity_matrix[i][index]} for index in dissimilar_indices if recipes_list[index].recipe_name != recipe.recipe_name]
-        avg_dissimilarity = sum(dissimilarity["similarity"] for dissimilarity in dissimilarities) / nb
-        dissimilar_recipes.append({"recipe": recipe, "avg_dissimilarity": avg_dissimilarity, "data": dissimilarities})
+        avg_dissimilarity = sum(dissimilarity["similarity"] for dissimilarity in dissimilarities) / len(dissimilarities)
+        dissimilar_recipes.append({"recipe": recipe, "avg_dissimilarity": avg_dissimilarity, "data": dissimilarities[-nb:]})
 
     dissimilar_recipes.sort(key=lambda x: x['avg_dissimilarity'], reverse=False)
     return dissimilar_recipes
